@@ -7,8 +7,13 @@ class InvalidModeException(Exception):
 
 class Conv2D:
 
-    def __init__(self, size, strides):
-        ...
+    def __init__(self, size, steps, filters):
+        self.size = size
+        self.steps = steps
+        self.filters = filters
+
+    def __call__(self, x):
+        
 
 
 class Padding:
@@ -42,20 +47,61 @@ class Padding:
 
 class Pooling:
 
-    def __init__(self, size, mode='max'):
+    def __init__(self, size, step, mode='max'):
         self.size = size
         self.mode = mode
+        self.step = step
 
     def __call__(self, x):
 
-        size = self.size
+        size_h, size_w = self.size
+        step = self.step
         mode = self.mode
-        
         batch_size, height, width, channels = x.shape
-        #FIXME:
 
-        if self.mode.lower() == "max":
-            
+        new_height = int((height - size_h) / step + 1)
+        new_width = int((width - size_w) / step + 1)
+
+        new_array = np.zeros((batch_size, new_height, new_width, channels))
+
+        h_idx = 0
+        for h in range(0, new_height):
+            w_idx = 0
+            for w in range(0, new_width):
+                for c in range(channels):
+                    fragment = x[:, h_idx:h_idx+size_w, w_idx:w_idx+size_w, c]
+                    if mode == "max":
+                        new_array[:, h, w, c] = np.max(fragment,
+                                                       axis=(1, 2))
+                    if mode == "mean":
+                        new_array[:, h, w, c] = np.mean(fragment,
+                                                        axis=(1, 2))
+
+                w_idx += step
+            h_idx += step
+
+        return new_array
+
+
+class Flat:
+
+    def __init__(self, units):
+        self.units = units
+        self.weights = None
+        self.biases = np.zeros(units)
+        self.initialized = False
+
+    def __call__(self, x):
+        if not self.initialized:
+            self._create_weights(x.shape)
+        return np.dot(x, self.weights) + self.biases
+
+    def _create_weights(self, inp_shape):
+        weights = np.random.standard_normal((inp_shape[-1], self.units)) 
+        weights *= 0.01  # now weights will be close but not equal to 0
+        self.weights = weights
+
+
 class Model:
 
     def __init__(self, layers):
