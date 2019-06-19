@@ -266,14 +266,18 @@ class Flatten(Layer):
 class BatchNorm(Layer):
 
     def __init__(self, epsilon=1e-8):
-        self.epsilon = epsilon
+        self.epsilon=epsilon
+        self.initialized = False
 
     def __call__(self, x):
 
+        if not self.initialized:
+            self._create_weights(x.shape)
+
         batch_size, height, width, channels = x.shape
         epsilon = self.epsilon
-        gamma = self.gamma
-        beta = self.beta
+        gamma = self.gamma.value
+        beta = self.beta.value
 
         mean = np.mean(x, axis=0)
         var = np.var(x, axis=0)
@@ -285,17 +289,18 @@ class BatchNorm(Layer):
         return calc
 
     def _create_weights(self, inp_shape):
-        gamma = 1.0
-        beta = 0.0
-        self.gamma = gamma
-        self.beta = beta
+        gamma = np.ones((1,))
+        beta = np.zeros((1,))
+        self.gamma = Variable(gamma)
+        self.beta = Variable(beta)
         self.variables = [self.gamma, self.beta]
+        self.initialized = True
 
     def backward(self, grad):
         x = self.memorized_input
         mean = np.mean(x, axis=0)
         var = np.var(x, axis=0)
-        gamma = self.gamma
+        gamma = self.gamma.value
 
         epsilon = self.epsilon
 
@@ -311,8 +316,8 @@ class BatchNorm(Layer):
         inp_grad *= (1.0 / std)
         inp_grad += (var_grad * 2 * (x_min_mean / x.shape[0])) + (mean_grad / x.shape[0])
 
-        gamma_grad = np.sum(grad * (x_min_mean / std), axis=0)
-        beta_grad = np.sum(grad, axis=0)
+        gamma_grad = np.sum(grad * (x_min_mean / std))
+        beta_grad = np.sum(grad)
 
         return inp_grad, {self.gamma: gamma_grad,
                           self.beta: beta_grad}

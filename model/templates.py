@@ -8,6 +8,7 @@ import numpy as np
 class Layer:
 
     def __init__(self, *args, **kwargs):
+        self.initialized = True
         self.memorized_input = None
         self.variables = []
 
