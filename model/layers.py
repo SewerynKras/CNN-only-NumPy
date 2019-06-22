@@ -38,14 +38,11 @@ class Conv2D(Layer):
         for h in range(new_height):
             w_idx = 0
             for w in range(new_width):
-                for c in range(filters):
-                    inp_frag = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
-                    weights_frag = weights[:, :, :, c]
-                    bias = biases[c]
-                    calc = inp_frag * weights_frag
-                    calc = np.sum(calc, axis=(1, 2, 3))
-                    calc += bias
-                    new_array[:, h, w, c] = calc
+                inp_frag = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
+                calc = np.expand_dims(inp_frag, axis=-1) * weights
+                calc = np.sum(calc, axis=(1, 2, 3))
+                calc += biases
+                new_array[:, h, w, :] = calc
                 w_idx += step
             h_idx += step
 
@@ -144,6 +141,7 @@ class Pooling(Layer):
         if mode.lower() not in ['max', 'mean']:
             raise InvalidModeException(f"'{mode}' is not a valid mode")
         self.mode = mode.lower()
+        self.variables = []
 
     def __call__(self, x):
 
