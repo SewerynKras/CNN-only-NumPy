@@ -46,7 +46,7 @@ class Conv2D(Layer):
                 w_idx += step
             h_idx += step
 
-        self.memorized_input = x
+        self.memorized_input = x.copy()
         return new_array
 
     def _create_weights(self, inp_shape):
@@ -77,16 +77,16 @@ class Conv2D(Layer):
         for h in range(new_height):
             w_idx = 0
             for w in range(new_width):
-                for c in range(new_channels):
-                    grad_fragment = input_grad[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
-                    input_fragment = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
+                grad_fragment = input_grad[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
+                input_fragment = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
 
-                    stacked_weights = np.stack([weights[:, :, :, c]] * x.shape[0])
-                    grad_reshaped = grad[:, h, w, c].reshape((-1, 1, 1, 1))
+                weights_reshaped = np.expand_dims(weights, axis=0)
+                input_reshaped = np.expand_dims(input_fragment, axis=-1)
+                grad_reshaped = grad[:, h, w, :].reshape((x.shape[0], 1, 1, 1, -1))
 
-                    grad_fragment += np.sum(stacked_weights * grad_reshaped, axis=0)
-                    weights_grad[:, :, :, c] += np.sum(input_fragment * grad_reshaped, axis=0)
-                    bias_grad[c] += np.sum(grad[:, h, w, c])
+                grad_fragment += np.sum(weights_reshaped * grad_reshaped, axis=-1)
+                weights_grad += np.sum(input_reshaped * grad_reshaped, axis=0)
+                bias_grad[:] += np.sum(grad[:, h, w, :])
 
                 w_idx += step
             h_idx += step
@@ -171,7 +171,7 @@ class Pooling(Layer):
                 w_idx += step
             h_idx += step
 
-        self.memorized_input = x
+        self.memorized_input = x.copy()
         return new_array
 
     def backward(self, grad):
@@ -194,7 +194,7 @@ class Pooling(Layer):
                     if self.mode == "max":
                         max_mask = np.max(fragment, axis=(1, 2)).reshape((-1, 1, 1))
                         max_mask = np.array(fragment == max_mask)
-                        grad_fragment += max_mask * grad[:, h, w, c]
+                        grad_fragment += max_mask * grad[:, h, w, c].reshape((-1, 1, 1))
                     elif self.mode == "mean":
                         mean_val = grad[:, h, w, c] / (size_h * size_w)
                         grad_fragment += np.full((batch_size, size_h, size_w), mean_val)
@@ -222,7 +222,7 @@ class FullyConnected(Layer):
         weights = self.weights.value
         biases = self.biases.value
 
-        self.memorized_input = x
+        self.memorized_input = x.copy()
         return np.dot(x, weights) + biases
 
     def _create_weights(self, inp_shape):
@@ -253,7 +253,7 @@ class Flatten(Layer):
         self.variables = []
 
     def __call__(self, x):
-        self.memorized_input = x
+        self.memorized_input = x.copy()
         return x.reshape((x.shape[0], -1))
 
     def backward(self, grad):
@@ -283,7 +283,7 @@ class BatchNorm(Layer):
         norm = (x - mean) / np.sqrt(var + epsilon)
         calc = gamma * norm + beta
 
-        self.memorized_input = x
+        self.memorized_input = x.copy()
         return calc
 
     def _create_weights(self, inp_shape):
@@ -319,3 +319,8 @@ class BatchNorm(Layer):
 
         return inp_grad, {self.gamma: gamma_grad,
                           self.beta: beta_grad}
+
+if __name__ == "__main__":
+    lay = Conv2D((2, 2), 1, 16)
+    inp = np.random.random((12, 28, 28, 3))
+    lay.backward(lay(inp))
