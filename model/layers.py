@@ -7,6 +7,8 @@ class Conv2D(Layer):
 
     def __init__(self, size, step, filters):
         """
+        Performs a 2D convolution on an array
+
         Arguments:
             size {float (int, int)}
             step {int}
@@ -34,15 +36,21 @@ class Conv2D(Layer):
 
         new_array = np.zeros((batch_size, new_height, new_width, filters))
 
+        # h_idx and w_idx keep track of the fragment index
+        # to select the correct fragment simply select [idx:idx+size]
         h_idx = 0
         for h in range(new_height):
             w_idx = 0
             for w in range(new_width):
                 inp_frag = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
+                # this way the entire filters channel gets evaluated at once
+                # so there's no need to iterate over it
+                # (this greately speeds up the calculations)
                 calc = np.expand_dims(inp_frag, axis=-1) * weights
                 calc = np.sum(calc, axis=(1, 2, 3))
                 calc += biases
                 new_array[:, h, w, :] = calc
+
                 w_idx += step
             h_idx += step
 
@@ -50,17 +58,33 @@ class Conv2D(Layer):
         return new_array
 
     def _create_weights(self, inp_shape):
+        """
+        Creates the initial weights based on the given input shape
+
+        Arguments:
+            inp_shape {float}
+        """
+
         size_h, size_w = self.size
         weights = np.random.standard_normal((size_h, size_w, inp_shape[-1], self.filters))
         weights *= 0.01  # now weights will be close but not equal to 0
         biases = np.zeros((self.filters,))
+
         self.biases = Variable(biases)
         self.weights = Variable(weights)
         self.variables = [self.weights, self.biases]
         self.initialized = True
 
     def backward(self, grad):
+        """
+        Performs the backpropagation calculations
 
+        Arguments:
+            grad {np.Array} -- output of the previous calculation
+
+        Returns:
+            (input_grad, {variable: variable_grad})
+        """
         weights = self.weights.value
         biases = self.biases.value
         size_h, size_w = self.size
@@ -73,6 +97,8 @@ class Conv2D(Layer):
         weights_grad = np.zeros_like(weights)
         bias_grad = np.zeros_like(biases)
 
+        # h_idx and w_idx keep track of the fragment index
+        # to select the correct fragment simply select [idx:idx+size]
         h_idx = 0
         for h in range(new_height):
             w_idx = 0
@@ -80,16 +106,19 @@ class Conv2D(Layer):
                 grad_fragment = input_grad[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
                 input_fragment = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
 
-                weights_reshaped = np.expand_dims(weights, axis=0)
-                input_reshaped = np.expand_dims(input_fragment, axis=-1)
+                # expand/reshape these fragment to go over all channel/filters
+                # dimensions (this speeds up the calculations)
+                weights_expanded = np.expand_dims(weights, axis=0)
+                input_expanded = np.expand_dims(input_fragment, axis=-1)
                 grad_reshaped = grad[:, h, w, :].reshape((x.shape[0], 1, 1, 1, -1))
 
-                grad_fragment += np.sum(weights_reshaped * grad_reshaped, axis=-1)
-                weights_grad += np.sum(input_reshaped * grad_reshaped, axis=0)
+                grad_fragment += np.sum(weights_expanded * grad_reshaped, axis=-1)
+                weights_grad += np.sum(input_expanded * grad_reshaped, axis=0)
                 bias_grad[:] += np.sum(grad[:, h, w, :])
 
                 w_idx += step
             h_idx += step
+
         return input_grad, {self.weights: weights_grad,
                             self.biases: bias_grad}
 
@@ -97,6 +126,17 @@ class Conv2D(Layer):
 class Padding(Layer):
 
     def __init__(self, size, mode='zero', **kwargs):
+        """
+        Pads an array with the given value
+
+        Arguments:
+            size {tuple} -- (int, int) -- vertical and horizontal pad
+
+        Keyword Arguments:
+            mode {str} -- aviable modes: ['zero', 'value', 'mean']
+            value {float} -- when the selected mode is "value" this argument
+                should be provided
+        """
         if mode not in ['zero', 'mean', 'value']:
             raise InvalidModeException(f"'{mode}' is not a valid mode")
 
@@ -123,6 +163,12 @@ class Padding(Layer):
                       constant_values=value)
 
     def backward(self, grad):
+        """
+        Performs the backpropagation calculation
+
+        Arguments:
+            grad {np.Array}
+        """
         s = self.size
         return grad[:, s:-s, s:-s, :], {}
 
@@ -131,6 +177,8 @@ class Pooling(Layer):
 
     def __init__(self, size, step, mode='max'):
         """
+        Applies pooling to an array
+
         Arguments:
             size {tuple (int, int)}
             step {int}
@@ -155,18 +203,19 @@ class Pooling(Layer):
 
         new_array = np.zeros((batch_size, new_height, new_width, channels))
 
+        # h_idx and w_idx keep track of the fragment index
+        # to select the correct fragment simply select [idx:idx+size]
         h_idx = 0
         for h in range(0, new_height):
             w_idx = 0
             for w in range(0, new_width):
-                for c in range(channels):
-                    fragment = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, c]
-                    if mode == "max":
-                        new_array[:, h, w, c] = np.max(fragment,
-                                                       axis=(1, 2))
-                    if mode == "mean":
-                        new_array[:, h, w, c] = np.mean(fragment,
-                                                        axis=(1, 2))
+                fragment = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
+                if mode == "max":
+                    new_array[:, h, w, :] = np.max(fragment,
+                                                   axis=(1, 2))
+                if mode == "mean":
+                    new_array[:, h, w, :] = np.mean(fragment,
+                                                    axis=(1, 2))
 
                 w_idx += step
             h_idx += step
@@ -175,7 +224,12 @@ class Pooling(Layer):
         return new_array
 
     def backward(self, grad):
+        """
+        Performs the backpropagation calculation
 
+        Arguments:
+            grad {np.Array}
+        """
         size_h, size_w = self.size
         step = self.step
         batch_size, height, width, channels = self.memorized_input.shape
@@ -188,16 +242,15 @@ class Pooling(Layer):
         for h in range(new_height):
             w_idx = 0
             for w in range(new_width):
-                for c in range(new_channels):
-                    fragment = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, c]
-                    grad_fragment = gradient[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, c]
-                    if self.mode == "max":
-                        max_mask = np.max(fragment, axis=(1, 2)).reshape((-1, 1, 1))
-                        max_mask = np.array(fragment == max_mask)
-                        grad_fragment += max_mask * grad[:, h, w, c].reshape((-1, 1, 1))
-                    elif self.mode == "mean":
-                        mean_val = grad[:, h, w, c] / (size_h * size_w)
-                        grad_fragment += np.full((batch_size, size_h, size_w), mean_val)
+                fragment = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
+                grad_fragment = gradient[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
+                if self.mode == "max":
+                    max_mask = np.max(fragment, axis=(1, 2))
+                    max_mask = np.array(fragment == max_mask)
+                    grad_fragment += max_mask * grad[:, h, w, :]
+                elif self.mode == "mean":
+                    mean_val = grad[:, h, w, :] / (size_h * size_w)
+                    grad_fragment += np.full((batch_size, size_h, size_w, channels), mean_val)
                 w_idx += step
             h_idx += step
         return gradient, {}
