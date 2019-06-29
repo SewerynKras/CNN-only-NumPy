@@ -62,7 +62,7 @@ class Conv2D(Layer):
         Creates the initial weights based on the given input shape
 
         Arguments:
-            inp_shape {float}
+            inp_shape {tuple}
         """
 
         size_h, size_w = self.size
@@ -243,14 +243,23 @@ class Pooling(Layer):
             w_idx = 0
             for w in range(new_width):
                 fragment = x[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
-                grad_fragment = gradient[:, h_idx:h_idx+size_h, w_idx:w_idx+size_w, :]
+                grad_fragment = gradient[:, h_idx:h_idx + size_h, w_idx:w_idx + size_w,:]
+
                 if self.mode == "max":
+                    # only add the max values of each batch and channel
+                    # based on the created mask
                     max_mask = np.max(fragment, axis=(1, 2))
                     max_mask = np.array(fragment == max_mask)
                     grad_fragment += max_mask * grad[:, h, w, :]
+
                 elif self.mode == "mean":
-                    mean_val = grad[:, h, w, :] / (size_h * size_w)
-                    grad_fragment += np.full((batch_size, size_h, size_w, channels), mean_val)
+                    # add a mean of each batch and channel
+                    size = size_h * size_w
+                    mean_val = grad[:, h, w, :] / size
+                    stacked = np.stack([mean_val.T] * size).T
+                    stacked = stacked.reshape((batch_size, size_h, size_w, channels))
+                    grad_fragment += stacked
+
                 w_idx += step
             h_idx += step
         return gradient, {}
@@ -260,6 +269,8 @@ class FullyConnected(Layer):
 
     def __init__(self, units):
         """
+        Multiplies an array by weights and adds bias
+
         Arguments:
             units {int}
         """
@@ -279,6 +290,12 @@ class FullyConnected(Layer):
         return np.dot(x, weights) + biases
 
     def _create_weights(self, inp_shape):
+        """
+        Creates the initial weights based on the given input shape
+
+        Arguments:
+            inp_shape {tuple}
+        """
         weights = np.random.standard_normal((inp_shape[-1], self.units))
         weights *= 0.01  # now weights will be close but not equal to 0
         biases = np.zeros((self.units,))
@@ -288,7 +305,12 @@ class FullyConnected(Layer):
         self.initialized = True
 
     def backward(self, grad):
+        """
+        Performs the backpropagation calculation
 
+        Arguments:
+            grad {np.Array}
+        """
         weights = self.weights.value
 
         input_grad = np.dot(grad, weights.T)
@@ -302,6 +324,9 @@ class FullyConnected(Layer):
 class Flatten(Layer):
 
     def __init__(self):
+        """
+        Flattens an array
+        """
         self.memorized_input = None
         self.variables = []
 
@@ -310,5 +335,11 @@ class Flatten(Layer):
         return x.reshape((x.shape[0], -1))
 
     def backward(self, grad):
+        """
+        Performs the backpropagation calculation
+
+        Arguments:
+            grad {np.Array}
+        """
         shape = self.memorized_input.shape
         return grad.reshape(shape), {}
