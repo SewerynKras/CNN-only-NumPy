@@ -1,4 +1,5 @@
 from model.templates import Activation
+import pickle
 
 
 class Model:
@@ -37,3 +38,13 @@ class Model:
         for lay in self.layers:
             size += lay.calculate_size()
         return size
+
+    @classmethod
+    def load(cls, path):
+        with open(path, "rb") as f:
+            model = cls(pickle.load(f))
+        return model
+
+    def save(self, path):
+        with open(path, "wb") as f:
+            pickle.dump(self.layers, f)
