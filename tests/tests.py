@@ -1,4 +1,5 @@
 from model import layers
+from model.templates import Variable
 import numpy as np
 
 
@@ -15,9 +16,9 @@ def test_Pooling_max_01():
     expected2 = np.array([[0, 0, 5, 0],
                           [3, 0, 0, 16],
                           [7, 0, 6, 0]]).reshape((1, 3, 4, 1)).astype("float32")
-    out2 = lay.backward(lay(arr))
+    out2, _ = lay.backward(lay(arr))
 
-    np.testing.assert_array_equal(out2.astype("float32"), expected2)
+    np.testing.assert_array_equal(out2, expected2)
 
 
 def test_Pooling_mean_02():
@@ -34,12 +35,26 @@ def test_Pooling_mean_02():
     expected2 = np.array([[0.5, 1.125, 1.875, 1.25],
                           [1.25, 2.4375, 3.375, 2.1875],
                           [0.75, 1.3125, 1.5, 0.9375]]).reshape((1, 3, 4, 1)).astype("float32")
-    out2 = lay.backward(lay(arr))
+    out2, _ = lay.backward(lay(arr))
 
-    np.testing.assert_array_equal(out2.astype("float32"), expected2)
+    np.testing.assert_array_equal(out2, expected2)
 
 
 def test_Conv_01():
     conv = layers.Conv2D((2, 2), 1, 1)
-    inp = np.random.random((3, 12, 12, 3))
-    conv.backward(conv(inp))
+    inp = np.array([[2, 4, 6],
+                    [8, 10, 12],
+                    [14, 16, 18]]).reshape((1, 3, 3, 1)).astype("float32")
+    filters = np.array([[-1, 0.5],
+                        [1, 2]]).reshape((2, 2, 1, 1)).astype('float32')
+    biases = np.ones((1,)).astype("float32")
+    conv.initialized = True
+    conv.weights = Variable(filters)
+    conv.biases = Variable(biases)
+
+    expected = np.array([[29, 34],
+                         [44, 49]]).reshape((1, 2, 2, 1)).astype("float32")
+
+    out = conv(inp)
+
+    np.testing.assert_array_equal(expected, out)

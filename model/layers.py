@@ -54,7 +54,7 @@ class Conv2D(Layer):
                 w_idx += step
             h_idx += step
 
-        self.memorized_input = x.copy()
+        self.memorized_input = x
         return new_array
 
     def _create_weights(self, inp_shape):
@@ -220,7 +220,7 @@ class Pooling(Layer):
                 w_idx += step
             h_idx += step
 
-        self.memorized_input = x.copy()
+        self.memorized_input = x
         return new_array
 
     def backward(self, grad):
@@ -250,7 +250,7 @@ class Pooling(Layer):
                     # based on the created mask
                     max_mask = np.max(fragment, axis=(1, 2))
                     max_mask = np.array(fragment == max_mask)
-                    grad_fragment += max_mask * grad[:, h, w, :]
+                    grad_fragment += max_mask * grad[:, h, w, :].reshape((batch_size, 1, 1, -1))
 
                 elif self.mode == "mean":
                     # add a mean of each batch and channel
@@ -286,7 +286,7 @@ class FullyConnected(Layer):
         weights = self.weights.value
         biases = self.biases.value
 
-        self.memorized_input = x.copy()
+        self.memorized_input = x
         return np.dot(x, weights) + biases
 
     def _create_weights(self, inp_shape):
@@ -331,7 +331,7 @@ class Flatten(Layer):
         self.variables = []
 
     def __call__(self, x):
-        self.memorized_input = x.copy()
+        self.memorized_input = x
         return x.reshape((x.shape[0], -1))
 
     def backward(self, grad):
