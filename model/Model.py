@@ -46,5 +46,8 @@ class Model:
         return model
 
     def save(self, path):
+        # delete memorized_input so it doesn't
+        # get saved for no reason
+        [lay.prepare_for_save() for lay in self.layers]
         with open(path, "wb") as f:
             pickle.dump(self.layers, f)
