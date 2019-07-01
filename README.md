@@ -6,4 +6,4 @@ I created this project to ensure I know exactly how CNNs work by coding one from
 
 -NumPy\
 \
-([test_mnist.py](https://github.com/SewerynKras/CNN-only-NumPy/blob/master/test_mnist.ipynb) uses TensorFlow to download the dataset)
+([test_mnist.ipynb](https://github.com/SewerynKras/CNN-only-NumPy/blob/master/test_mnist.ipynb) uses TensorFlow to download the dataset)
