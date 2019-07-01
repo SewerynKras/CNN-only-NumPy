@@ -27,6 +27,9 @@ class Layer:
             size += np.product(var.value.shape)
         return size
 
+    def prepare_for_save(self):
+        self.memorized_input = None
+
 
 class Activation(Layer):
     pass
