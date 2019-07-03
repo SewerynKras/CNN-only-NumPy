@@ -27,7 +27,7 @@ class Layer:
             size += np.product(var.value.shape)
         return size
 
-    def prepare_for_save(self):
+    def reset(self):
         self.memorized_input = None
 
 

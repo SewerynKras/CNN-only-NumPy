@@ -73,6 +73,9 @@ class Adam(Optimizer):
 
         variable.value -= lr * m_corr / (np.sqrt(v_corr) + epsilon)
 
+        self.variables[variable]['m'] = m
+        self.variables[variable]['v'] = v
+
 
 class SGD(Optimizer):
 
