@@ -30,6 +30,9 @@ class Model:
                 for var, grad in var_grads.items():
                     optimizer.apply_grad(grad=grad, variable=var)
 
+        # remove all memorized inputs since it's not needed anymore
+        self.reset()
+
     def calculate_size(self):
         """
         Returns the total number of trainable variables
@@ -48,6 +51,10 @@ class Model:
     def save(self, path):
         # delete memorized_input so it doesn't
         # get saved for no reason
-        [lay.prepare_for_save() for lay in self.layers]
+        self.reset()
         with open(path, "wb") as f:
             pickle.dump(self.layers, f)
+
+    def reset(self):
+        for lay in self.layers:
+            lay.reset()
